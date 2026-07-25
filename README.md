@@ -12,12 +12,12 @@ Installs Docker, Docker Compose, auto-generates security keys (`ENCRYPTION_KEY` 
 #### ⚡ One-Line Remote Execution (Recommended)
 Run directly on your VM:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mdrcloud/Install-Scripts/main/scripts/install-arcane.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mrose5736/Install-Scripts/main/scripts/install-arcane.sh | bash
 ```
 
 #### 🛠 Manual Execution
 ```bash
-curl -fsSL -O https://raw.githubusercontent.com/mdrcloud/Install-Scripts/main/scripts/install-arcane.sh
+curl -fsSL -O https://raw.githubusercontent.com/mrose5736/Install-Scripts/main/scripts/install-arcane.sh
 chmod +x install-arcane.sh
 ./install-arcane.sh
 ```
