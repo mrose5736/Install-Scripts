@@ -193,12 +193,11 @@ if (-not $SkipDefenderRemoval) {
 }
 
 # ==============================================================================
-# 4. SOFTWARE INSTALLATION: Chrome, VS Code, Everything
+# 4. SOFTWARE INSTALLATION: Chrome, VS Code, Everything (High-Speed Direct CDN)
 # ==============================================================================
 if (-not $SkipSoftwareInstall) {
     Write-Step "Checking & Installing Software (Google Chrome, VS Code, Everything)"
 
-    # Helper function to test command existence
     function Test-AppInstalled {
         param([string]$Path, [string]$CommandName)
         if ($Path -and (Test-Path $Path)) { return $true }
@@ -206,61 +205,86 @@ if (-not $SkipSoftwareInstall) {
         return $false
     }
 
-    # Ensure TLS 1.2+ for downloads
+    # Ensure modern TLS protocols
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
 
-    # Check if winget is available
-    $wingetAvailable = [bool](Get-Command "winget" -ErrorAction SilentlyContinue)
+    # Fast direct file downloader using .NET WebClient (bypasses winget source indexing & PowerShell buffer bottlenecks)
+    function Download-FileFast {
+        param(
+            [string]$Url,
+            [string]$DestinationPath,
+            [string]$Label
+        )
+        Write-Info "Downloading $Label directly from vendor CDN..."
+        $webClient = New-Object System.Net.WebClient
+        $webClient.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+        $webClient.DownloadFile($Url, $DestinationPath)
+    }
 
-    # 4.1 Google Chrome
+    # 4.1 Google Chrome (Official Enterprise 64-bit MSI)
     $chromeInstalled = Test-AppInstalled -Path "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe" -CommandName "chrome"
     if ($chromeInstalled) {
         Write-Success "Google Chrome is already installed."
     } else {
-        Write-Info "Installing Google Chrome..."
-        if ($wingetAvailable) {
-            winget install --id Google.Chrome --silent --accept-source-agreements --accept-package-agreements
-        } else {
-            $chromeInstaller = "$env:TEMP\ChromeStandaloneSetup64.msi"
-            Invoke-WebRequest -Uri "https://dl.google.com/tag/s/appguid%3D%7B8A69D345-D564-463C-AFF1-A69D9E530F96%7D%26iid%3D%7BEB5A5C70-96A7-F469-8B8E-32E1A117FBE7%7D%26lang%3Den%26browser%3D4%26usagestats%3D0%26appname%3DGoogle%2520Chrome%26needsadmin%3Dtrue/dl/chrome/install/googlechromestandaloneenterprise64.msi" -OutFile $chromeInstaller
-            Start-Process msiexec.exe -ArgumentList "/i `"$chromeInstaller`" /qn /norestart" -Wait -NoNewWindow
+        $chromeInstaller = "$env:TEMP\googlechromeenterprise64.msi"
+        try {
+            Download-FileFast `
+                -Url "https://dl.google.com/tag/s/appguid%3D%7B8A69D345-D564-463C-AFF1-A69D9E530F96%7D%26iid%3D%7BEB5A5C70-96A7-F469-8B8E-32E1A117FBE7%7D%26lang%3Den%26browser%3D4%26usagestats%3D0%26appname%3DGoogle%2520Chrome%26needsadmin%3Dtrue/dl/chrome/install/googlechromestandaloneenterprise64.msi" `
+                -DestinationPath $chromeInstaller `
+                -Label "Google Chrome Enterprise (MSI)"
+            
+            Write-Info "Installing Google Chrome..."
+            Start-Process msiexec.exe -ArgumentList "/i `"$chromeInstaller`" /qn /norestart ALLUSERS=1" -Wait -NoNewWindow
+            Write-Success "Google Chrome installation completed."
+        } catch {
+            Write-Err "Failed to install Google Chrome: $_"
+        } finally {
             Remove-Item $chromeInstaller -Force -ErrorAction SilentlyContinue
         }
-        Write-Success "Google Chrome installation completed."
     }
 
-    # 4.2 Visual Studio Code (System-wide 64-bit)
+    # 4.2 Visual Studio Code (Official 64-bit System Installer)
     $vscodeInstalled = Test-AppInstalled -Path "${env:ProgramFiles}\Microsoft VS Code\Code.exe" -CommandName "code"
     if ($vscodeInstalled) {
         Write-Success "Visual Studio Code is already installed."
     } else {
-        Write-Info "Installing Visual Studio Code (System Installer)..."
-        if ($wingetAvailable) {
-            winget install --id Microsoft.VisualStudioCode --silent --accept-source-agreements --accept-package-agreements --scope machine
-        } else {
-            $vscodeInstaller = "$env:TEMP\VSCodeSetup-x64.exe"
-            Invoke-WebRequest -Uri "https://update.code.visualstudio.com/latest/win32-x64/stable" -OutFile $vscodeInstaller
+        $vscodeInstaller = "$env:TEMP\VSCodeSetup-x64.exe"
+        try {
+            Download-FileFast `
+                -Url "https://update.code.visualstudio.com/latest/win32-x64/stable" `
+                -DestinationPath $vscodeInstaller `
+                -Label "Visual Studio Code (System Installer)"
+
+            Write-Info "Installing Visual Studio Code..."
             Start-Process $vscodeInstaller -ArgumentList "/VERYSILENT /NORESTART /MERGETASKS=!runcode,addcontextmenufiles,addcontextmenufolders,associatewithfiles,addtopath" -Wait -NoNewWindow
+            Write-Success "Visual Studio Code installation completed."
+        } catch {
+            Write-Err "Failed to install Visual Studio Code: $_"
+        } finally {
             Remove-Item $vscodeInstaller -Force -ErrorAction SilentlyContinue
         }
-        Write-Success "Visual Studio Code installation completed."
     }
 
-    # 4.3 Voidtools Everything Search Tool
+    # 4.3 Voidtools Everything Search Tool (Official 64-bit Setup)
     $everythingInstalled = Test-AppInstalled -Path "${env:ProgramFiles}\Everything\Everything.exe" -CommandName "Everything"
     if ($everythingInstalled) {
         Write-Success "Voidtools Everything is already installed."
     } else {
-        Write-Info "Installing Voidtools Everything Search Tool..."
-        if ($wingetAvailable) {
-            winget install --id voidtools.Everything --silent --accept-source-agreements --accept-package-agreements
-        } else {
-            $everythingInstaller = "$env:TEMP\Everything-Setup.exe"
-            Invoke-WebRequest -Uri "https://www.voidtools.com/Everything-1.4.1.1026.x64-Setup.exe" -OutFile $everythingInstaller
+        $everythingInstaller = "$env:TEMP\Everything-Setup.exe"
+        try {
+            Download-FileFast `
+                -Url "https://www.voidtools.com/Everything-1.4.1.1026.x64-Setup.exe" `
+                -DestinationPath $everythingInstaller `
+                -Label "Voidtools Everything"
+
+            Write-Info "Installing Voidtools Everything..."
             Start-Process $everythingInstaller -ArgumentList "/S" -Wait -NoNewWindow
+            Write-Success "Voidtools Everything installation completed."
+        } catch {
+            Write-Err "Failed to install Voidtools Everything: $_"
+        } finally {
             Remove-Item $everythingInstaller -Force -ErrorAction SilentlyContinue
         }
-        Write-Success "Voidtools Everything installation completed."
     }
 }
 
