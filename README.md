@@ -41,9 +41,36 @@ chmod +x install-arcane.sh
 
 ---
 
+### 3. Windows Server 2022 / 2025 Post-Install (`setup-windows-server.ps1`)
+Post-installation baseline setup script for Windows Server 2022 and 2025 Datacenter.
+- Checks and sets Timezone to Europe/London (`GMT Standard Time`).
+- Configures English (UK) / `en-GB` language, system locale, and keyboard layout.
+- Removes Windows Defender features (`Windows-Defender`).
+- Checks and installs Google Chrome, Visual Studio Code (system-wide), and Voidtools Everything.
+- Baseline Server Tweaks: Disables IE ESC, enables RDP with NLA, unhides file extensions & hidden files, sets High Performance power plan, and syncs NTP against the UK pool.
+
+#### ⚡ One-Line Remote Execution (Elevated PowerShell)
+```powershell
+irm https://raw.githubusercontent.com/mrose5736/Install-Scripts/main/scripts/setup-windows-server.ps1 | iex
+```
+
+#### 🛠 Manual Execution
+```powershell
+# Run with all defaults (will prompt if Defender removal requires restart)
+.\setup-windows-server.ps1
+
+# Optional flags:
+.\setup-windows-server.ps1 -AutoRestart
+.\setup-windows-server.ps1 -SkipDefenderRemoval
+.\setup-windows-server.ps1 -SkipSoftwareInstall
+.\setup-windows-server.ps1 -SkipServerTweaks
+```
+
+---
+
 ## 📋 Requirements
-- **OS**: Ubuntu or Debian
-- **User**: Regular user with `sudo` privileges (e.g. `mdrcloud`)
+- **Linux Scripts**: Ubuntu or Debian with `sudo` privileges.
+- **Windows Script**: Windows Server 2022 or 2025 Datacenter run from an elevated Administrator PowerShell prompt.
 
 ---
 
