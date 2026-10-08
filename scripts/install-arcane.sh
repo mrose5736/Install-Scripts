@@ -8,6 +8,26 @@
 
 set -euo pipefail
 
+# ANSI Shadow Figlet MDR Banner
+show_banner() {
+    clear 2>/dev/null || true
+    echo -e "\033[36m"
+    cat << "EOF"
+███╗   ███╗██████╗ ██████╗ 
+████╗ ████║██╔══██╗██╔══██╗
+██╔████╔██║██║  ██║██████╔╝
+██║╚██╔╝██║██║  ██║██╔══██╗
+██║ ╚═╝ ██║██████╔╝██║  ██║
+╚═╝     ╚═╝╚═════╝ ╚═╝  ╚═╝
+EOF
+    echo -e "\033[0m\033[90m--------------------------------------------------\033[0m"
+    echo -e "\033[33mArcane Docker Management UI Installer\033[0m"
+    echo -e "\033[90mCopyright 2026 // mdr95.net\033[0m"
+    echo -e "\033[90m--------------------------------------------------\033[0m\n"
+}
+
+show_banner
+
 # Require non-root user with sudo permissions
 if [ "$EUID" -eq 0 ]; then
     echo "[!] Error: Please run this script as your regular user (e.g., 'mdrcloud')."

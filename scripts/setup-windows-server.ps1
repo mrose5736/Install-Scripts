@@ -46,6 +46,27 @@ param (
 )
 
 $ErrorActionPreference = "Continue"
+$ProgressPreference = "SilentlyContinue"
+
+# Ensure UTF-8 console output for ASCII/ANSI block characters
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+function Show-Banner {
+    param([string]$Subtitle)
+    Clear-Host -ErrorAction SilentlyContinue
+    Write-Host @"
+`e[36m███╗   ███╗██████╗ ██████╗ 
+████╗ ████║██╔══██╗██╔══██╗
+██╔████╔██║██║  ██║██████╔╝
+██║╚██╔╝██║██║  ██║██╔══██╗
+██║ ╚═╝ ██║██████╔╝██║  ██║
+╚═╝     ╚═╝╚═════╝ ╚═╝  ╚═╝`e[0m
+`e[90m--------------------------------------------------`e[0m
+`e[33m$Subtitle`e[0m
+`e[90mCopyright 2026 // mdr95.net`e[0m
+`e[90m--------------------------------------------------`e[0m
+"@
+}
 
 function Write-Step {
     param([string]$Message)
@@ -68,6 +89,9 @@ function Write-Err {
     param([string]$Message)
     Write-Host "[ERROR] $Message" -ForegroundColor Red
 }
+
+# Display classic terminal ANSI Shadow banner
+Show-Banner -Subtitle "Windows Server 2022/2025 Post-Install Setup"
 
 # --- Check Administrator Privileges ---
 $currentPrincipal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
@@ -128,8 +152,10 @@ try {
         Set-WinUserLanguageList -LanguageList $currentLangs -Force
     }
 
-    # Copy settings to System accounts (Welcome Screen, Default User)
-    Copy-UserInternationalSettingsToSystem -WelcomeScreen $true -NewUser $true -ErrorAction SilentlyContinue
+    # Copy settings to System accounts (Welcome Screen, Default User) if cmdlet exists
+    if (Get-Command Copy-UserInternationalSettingsToSystem -ErrorAction SilentlyContinue) {
+        Copy-UserInternationalSettingsToSystem -WelcomeScreen $true -NewUser $true -ErrorAction SilentlyContinue
+    }
 
     Write-Success "Locale and language settings set to English (United Kingdom) - $targetLocale."
 } catch {
@@ -144,9 +170,10 @@ if (-not $SkipDefenderRemoval) {
     try {
         $defenderFeatures = Get-WindowsFeature -Name *Defender* | Where-Object { $_.Installed }
         if ($defenderFeatures) {
-            Write-Info "Found installed Defender features: $(($defenderFeatures.Name) -join ', ')"
-            Write-Info "Uninstalling Windows-Defender feature..."
-            $uninstallResult = Uninstall-WindowsFeature -Name Windows-Defender, Windows-Defender-GUI -ErrorAction Stop
+            $featureNames = $defenderFeatures.Name
+            Write-Info "Found installed Defender features: $($featureNames -join ', ')"
+            Write-Info "Uninstalling Defender features ($($featureNames -join ', '))..."
+            $uninstallResult = Uninstall-WindowsFeature -Name $featureNames -ErrorAction Stop
             
             if ($uninstallResult.RestartNeeded -eq 'Yes' -or $uninstallResult.RequiresRestart) {
                 Write-Info "Windows Defender removal requires a system reboot."
