@@ -46,7 +46,11 @@ Post-installation baseline setup script for Windows Server 2022 and 2025 Datacen
 - Checks and sets Timezone to Europe/London (`GMT Standard Time`).
 - Configures English (UK) / `en-GB` language, system locale, and keyboard layout.
 - Removes Windows Defender features (`Windows-Defender`).
-- Checks and installs Google Chrome, Visual Studio Code (system-wide), and Voidtools Everything.
+- Checks and installs Google Chrome, Visual Studio Code (system-wide), and Voidtools Everything using high-throughput CDN direct streaming.
+- **Custom Wallpaper & Lock Screen**: Lets you select and automatically configures Desktop Background, Lock Screen, and Login Screen from 3 predefined profiles:
+  1. `Infrastructure`: MDRCloud Infrastructure Server ([Dark 2024](https://i.ibb.co/2WkBnh0/MDR-2-Dark-2024.png))
+  2. `HostingClient`: MDRCloud Hosting Client Server ([White on Dark](https://i.ibb.co/7KWvBzf/MDR-2-White-on-Dark.png))
+  3. `HomeServer`: Private Home Server (MDR) ([Solitaire Nostalgia](https://i.ibb.co/n8fJzSxL/Msft-Nostalgia-Solitaire.jpg))
 - Baseline Server Tweaks: Disables IE ESC, enables RDP with NLA, unhides file extensions & hidden files, sets High Performance power plan, and syncs NTP against the UK pool.
 
 #### ⚡ One-Line Remote Execution (Elevated PowerShell)
@@ -56,10 +60,17 @@ irm https://raw.githubusercontent.com/mrose5736/Install-Scripts/main/scripts/set
 
 #### 🛠 Manual Execution
 ```powershell
-# Run with all defaults (will prompt if Defender removal requires restart)
+# Interactive run (prompts for background selection):
 .\setup-windows-server.ps1
 
+# Non-interactive with a specific wallpaper profile:
+.\setup-windows-server.ps1 -WallpaperProfile Infrastructure
+.\setup-windows-server.ps1 -WallpaperProfile HostingClient
+.\setup-windows-server.ps1 -WallpaperProfile HomeServer
+.\setup-windows-server.ps1 -WallpaperProfile None
+
 # Optional flags:
+.\setup-windows-server.ps1 -SkipWallpaper
 .\setup-windows-server.ps1 -AutoRestart
 .\setup-windows-server.ps1 -SkipDefenderRemoval
 .\setup-windows-server.ps1 -SkipSoftwareInstall

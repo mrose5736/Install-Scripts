@@ -16,6 +16,17 @@
          - Configure Windows Update to notify / auto-download.
          - Enable High Performance Power Plan.
 
+.PARAMETER WallpaperProfile
+    Selects the default Desktop, Lock Screen, and Login Screen background wallpaper:
+      - 'Infrastructure': MDRCloud Infrastructure Server (https://i.ibb.co/2WkBnh0/MDR-2-Dark-2024.png)
+      - 'HostingClient':  MDRCloud Hosting Client Server (https://i.ibb.co/7KWvBzf/MDR-2-White-on-Dark.png)
+      - 'HomeServer':     Private Home Server (MDR) (https://i.ibb.co/n8fJzSxL/Msft-Nostalgia-Solitaire.jpg)
+      - 'None':           Keep default Windows wallpaper.
+    If not specified and running interactively, the script prompts for your selection.
+
+.PARAMETER SkipWallpaper
+    Switch to skip wallpaper and lock/login screen customization entirely.
+
 .PARAMETER SkipDefenderRemoval
     Switch to keep Windows Defender enabled.
 
@@ -29,16 +40,24 @@
     Automatically reboot if changes (such as Defender removal) require a restart.
 
 .EXAMPLE
-    .\Configure-WindowsServerPostInstall.ps1
-    Runs all configuration steps with prompts/status logging.
+    .\setup-windows-server.ps1
+    Runs configuration interactively with wallpaper selection.
 
 .EXAMPLE
-    .\Configure-WindowsServerPostInstall.ps1 -AutoRestart
-    Runs all configuration and reboots if required.
+    .\setup-windows-server.ps1 -SkipWallpaper
+    Runs configuration with all tweaks, leaving default Windows wallpaper untouched.
+
+.EXAMPLE
+    .\setup-windows-server.ps1 -WallpaperProfile Infrastructure -AutoRestart
+    Configures server non-interactively with the Infrastructure background.
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true)]
 param (
+    [ValidateSet("Infrastructure", "HostingClient", "HomeServer", "None", "Prompt")]
+    [string]$WallpaperProfile = "Prompt",
+
+    [switch]$SkipWallpaper,
     [switch]$SkipDefenderRemoval,
     [switch]$SkipSoftwareInstall,
     [switch]$SkipServerTweaks,
@@ -54,18 +73,20 @@ $ProgressPreference = "SilentlyContinue"
 function Show-Banner {
     param([string]$Subtitle)
     Clear-Host -ErrorAction SilentlyContinue
-    Write-Host @"
-`e[36m███╗   ███╗██████╗ ██████╗ 
+    $e = [char]27
+    $bannerText = @"
+$($e)[36m███╗   ███╗██████╗ ██████╗ 
 ████╗ ████║██╔══██╗██╔══██╗
 ██╔████╔██║██║  ██║██████╔╝
 ██║╚██╔╝██║██║  ██║██╔══██╗
 ██║ ╚═╝ ██║██████╔╝██║  ██║
-╚═╝     ╚═╝╚═════╝ ╚═╝  ╚═╝`e[0m
-`e[90m--------------------------------------------------`e[0m
-`e[33m$Subtitle`e[0m
-`e[90mCopyright 2026 // mdr95.net`e[0m
-`e[90m--------------------------------------------------`e[0m
+╚═╝     ╚═╝╚═════╝ ╚═╝  ╚═╝$($e)[0m
+$($e)[90m--------------------------------------------------$($e)[0m
+$($e)[33m$Subtitle$($e)[0m
+$($e)[90mCopyright 2026 // mdr95.net$($e)[0m
+$($e)[90m--------------------------------------------------$($e)[0m
 "@
+    Write-Host $bannerText
 }
 
 function Write-Step {
@@ -172,9 +193,17 @@ if (-not $SkipDefenderRemoval) {
         if ($defenderFeatures) {
             $featureNames = $defenderFeatures.Name
             Write-Info "Found installed Defender features: $($featureNames -join ', ')"
-            Write-Info "Uninstalling Defender features ($($featureNames -join ', '))..."
+            Write-Info "Uninstalling Defender features via Windows Feature Manager..."
+            Write-Info "Note: Feature removal takes 2-4 minutes on Windows Server while component store manifests update."
+
+            # Temporarily restore progress preference for Uninstall-WindowsFeature so progress percentage is visible
+            $prevProgress = $ProgressPreference
+            $ProgressPreference = "Continue"
+            
             $uninstallResult = Uninstall-WindowsFeature -Name $featureNames -ErrorAction Stop
             
+            $ProgressPreference = $prevProgress
+
             if ($uninstallResult.RestartNeeded -eq 'Yes' -or $uninstallResult.RequiresRestart) {
                 Write-Info "Windows Defender removal requires a system reboot."
                 $restartNeeded = $true
@@ -355,6 +384,134 @@ if (-not $SkipServerTweaks) {
     } catch {
         Write-Err "Failed to synchronize time service: $_"
     }
+}
+
+# ==============================================================================
+# 6. DESKTOP, LOCK SCREEN & LOGON BACKGROUND CONFIGURATION
+# ==============================================================================
+if (-not $SkipWallpaper) {
+    $wallpaperProfiles = @{
+        "1" = @{
+            Key   = "Infrastructure"
+            Name  = "MDRCloud Infrastructure Server"
+            Url   = "https://i.ibb.co/2WkBnh0/MDR-2-Dark-2024.png"
+            Ext   = ".png"
+        }
+        "2" = @{
+            Key   = "HostingClient"
+            Name  = "MDRCloud Hosting Client Server"
+            Url   = "https://i.ibb.co/7KWvBzf/MDR-2-White-on-Dark.png"
+            Ext   = ".png"
+        }
+        "3" = @{
+            Key   = "HomeServer"
+            Name  = "Private Home Server (MDR)"
+            Url   = "https://i.ibb.co/n8fJzSxL/Msft-Nostalgia-Solitaire.jpg"
+            Ext   = ".jpg"
+        }
+    }
+
+    $chosenProfile = $null
+
+    if ($WallpaperProfile -eq "Prompt" -and [Environment]::UserInteractive) {
+        Write-Step "Default Desktop, Lock Screen & Login Screen Wallpaper (Optional)"
+        Write-Host "Would you like to customize the default background and lock/login screen?" -ForegroundColor Yellow
+        Write-Host "  [1] MDRCloud Infrastructure Server (Dark 2024)" -ForegroundColor Cyan
+        Write-Host "  [2] MDRCloud Hosting Client Server (White on Dark)" -ForegroundColor Cyan
+        Write-Host "  [3] Private Home Server (MDR) (Solitaire Nostalgia)" -ForegroundColor Cyan
+        Write-Host "  [4] Skip / Leave default Windows background" -ForegroundColor Gray
+        
+        $selection = Read-Host "`nEnter selection [1-4] (Default: 4 - Skip)"
+        if ([string]::IsNullOrWhiteSpace($selection)) { $selection = "4" }
+
+        switch ($selection) {
+            "1" { $chosenProfile = $wallpaperProfiles["1"] }
+            "2" { $chosenProfile = $wallpaperProfiles["2"] }
+            "3" { $chosenProfile = $wallpaperProfiles["3"] }
+            default {
+                Write-Info "Wallpaper customization skipped."
+            }
+        }
+    } elseif ($WallpaperProfile -ne "None" -and $WallpaperProfile -ne "Prompt") {
+        $matched = $wallpaperProfiles.Values | Where-Object { $_.Key -ieq $WallpaperProfile }
+        if ($matched) {
+            $chosenProfile = $matched
+        }
+    }
+
+    if ($chosenProfile) {
+    Write-Step "Applying Background Wallpaper: $($chosenProfile.Name)"
+    try {
+        # Prepare system wallpapers directory
+        $wallpaperDir = "$env:SystemDrive\Windows\Web\Wallpaper\MDR"
+        if (-not (Test-Path $wallpaperDir)) {
+            New-Item -Path $wallpaperDir -ItemType Directory -Force | Out-Null
+        }
+
+        $localImageFile = Join-Path $wallpaperDir "MDR_Background$($chosenProfile.Ext)"
+        $wc = New-Object System.Net.WebClient
+        $wc.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+        Write-Info "Downloading background image from $($chosenProfile.Url)..."
+        $wc.DownloadFile($chosenProfile.Url, $localImageFile)
+
+        # 6.1 Set Lock Screen and Logon Screen Background via System Policy & OEM Background
+        Write-Info "Configuring Lock Screen and Login Screen system policy..."
+        $personalizationKey = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"
+        if (-not (Test-Path $personalizationKey)) {
+            New-Item -Path $personalizationKey -ItemType Directory -Force | Out-Null
+        }
+        Set-ItemProperty -Path $personalizationKey -Name "LockScreenImage" -Value $localImageFile -Force
+        Set-ItemProperty -Path $personalizationKey -Name "LockScreenOverlays" -Value 0 -Force -ErrorAction SilentlyContinue
+
+        # Disable Lock Screen blur on sign-in screen (acrylic blur effect)
+        $systemPoliciesKey = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
+        if (-not (Test-Path $systemPoliciesKey)) {
+            New-Item -Path $systemPoliciesKey -ItemType Directory -Force | Out-Null
+        }
+        Set-ItemProperty -Path $systemPoliciesKey -Name "DisableAcrylicBackgroundOnLogon" -Value 1 -Force -ErrorAction SilentlyContinue
+
+        # 6.2 Set Desktop Wallpaper for Current User (Registry + SystemParametersInfo API)
+        Write-Info "Setting Desktop Wallpaper for Current User..."
+        $userDesktopKey = "HKCU:\Control Panel\Desktop"
+        Set-ItemProperty -Path $userDesktopKey -Name "Wallpaper" -Value $localImageFile -Force
+        Set-ItemProperty -Path $userDesktopKey -Name "WallpaperStyle" -Value "10" -Force # 10 = Fill, 2 = Stretch, 6 = Fit
+        Set-ItemProperty -Path $userDesktopKey -Name "TileWallpaper" -Value "0" -Force
+
+        # Call SystemParametersInfo to apply desktop wallpaper immediately without logoff
+        Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class WallpaperAPI {
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+}
+"@ -ErrorAction SilentlyContinue
+
+        [WallpaperAPI]::SystemParametersInfo(0x0014, 0, $localImageFile, 0x01 -bor 0x02) | Out-Null
+
+        # 6.3 Set Desktop Wallpaper for Default User profile (new users)
+        try {
+            $defaultHivePath = "$env:SystemDrive\Users\Default\NTUSER.DAT"
+            if (Test-Path $defaultHivePath) {
+                reg load HKU\DefUser "$defaultHivePath" 2>$null | Out-Null
+                Set-ItemProperty -Path "Registry::HKU\DefUser\Control Panel\Desktop" -Name "Wallpaper" -Value $localImageFile -Force -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path "Registry::HKU\DefUser\Control Panel\Desktop" -Name "WallpaperStyle" -Value "10" -Force -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path "Registry::HKU\DefUser\Control Panel\Desktop" -Name "TileWallpaper" -Value "0" -Force -ErrorAction SilentlyContinue
+                [GC]::Collect()
+                Start-Sleep -Milliseconds 200
+                reg unload HKU\DefUser 2>$null | Out-Null
+            }
+        } catch {
+            Write-Err "Could not set default user profile wallpaper: $_"
+        }
+
+        Write-Success "Desktop, Lock Screen, and Login Screen background set to '$($chosenProfile.Name)'."
+    } catch {
+        Write-Err "Failed to apply background: $_"
+    }
+}
+} else {
+    Write-Info "Skipping wallpaper customization as requested (-SkipWallpaper)."
 }
 
 # ==============================================================================
